@@ -38,7 +38,12 @@ def proses_gambar():
         return
 
     # --- 3. Tentukan Faktor Enhancement ---
-    enhancement_factor = 1.5
+    # nilai default:
+    # <1.0 pudar
+    # 1.0 = asli
+    # 1.5 perubahan, dimana 50% pudar, 50% berwarna lebih kuat
+    # 2.0 = dua kali lebih berwarna
+    enhancement_factor = 1.5    
     try:
         faktor_str = input(f"Masukkan faktor enhancement warna (Contoh: 1.5) [Default: {enhancement_factor}]: ")
         if faktor_str.strip():
