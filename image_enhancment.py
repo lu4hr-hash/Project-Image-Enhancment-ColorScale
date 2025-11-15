@@ -4,7 +4,7 @@ import glob
 
 # --- KONFIGURASI ---
 # 1. Tentukan path ke folder input Anda
-FOLDER_INPUT = r"D:\Lutter\PROJECT\Image_Enhancment_ColorScale\gambar"
+FOLDER_INPUT = "D:\Lutter\PROJECT\Image_Enhancment_ColorScale\gambar"
 
 # 2. Tentukan path ke folder output Anda (akan dibuat jika belum ada)
 FOLDER_OUTPUT = "folder_output_hasil"
