@@ -1,93 +1,115 @@
+import cv2
 import os
-import tkinter as tk
-from tkinter import filedialog
-from PIL import Image, ImageEnhance
-import matplotlib.pyplot as plt
+import glob
 
-def proses_gambar():
+# --- KONFIGURASI ---
+# 1. Tentukan path ke folder input Anda
+FOLDER_INPUT = r"D:\Lutter\PROJECT\Image_Enhancment_ColorScale\gambar"
+
+# 2. Tentukan path ke folder output Anda (akan dibuat jika belum ada)
+FOLDER_OUTPUT = "folder_output_hasil"
+
+# 3. (Opsional) Sesuaikan parameter CLAHE
+CLIP_LIMIT = 2.0
+TILE_GRID_SIZE = (8, 8)
+# --------------------
+
+
+def enhance_image_clahe(image):
     """
-    Fungsi utama untuk memilih file (individual ATAU folder), 
-    melakukan color enhancement, menyimpan, dan menampilkan perbandingan.
+    Menerapkan CLAHE pada gambar input (berwarna atau grayscale).
     """
+    # Inisialisasi objek CLAHE
+    # clipLimit: Ambang batas untuk membatasi kontras.
+    # tileGridSize: Ukuran area lokal untuk histogram equalization.
+    clahe = cv2.createCLAHE(clipLimit=CLIP_LIMIT, tileGridSize=TILE_GRID_SIZE)
     
-    # --- 1. Konfigurasi Awal ---
-    folder_output = "hasil_enhancement"
-    if not os.path.exists(folder_output):
-        os.makedirs(folder_output)
-        print(f"Folder '{folder_output}' telah dibuat.")
-
-    # --- 2. Dialog Pilih File ---
+    # Cek apakah gambar berwarna atau grayscale
+    if len(image.shape) == 2 or (len(image.shape) == 3 and image.shape[2] == 1):
+        # Ini adalah gambar grayscale
+        # Langsung terapkan CLAHE
+        enhanced_image = clahe.apply(image)
     
-    # Siapkan root window tkinter dan sembunyikan
-    root = tk.Tk()
-    root.withdraw()
+    elif len(image.shape) == 3:
+        # Ini adalah gambar berwarna
+        # Konversi dari BGR ke L*a*b* color space
+        # Kita hanya ingin menerapkan CLAHE pada channel 'L' (Lightness)
+        lab_image = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+        
+        # Pisahkan channel L, a, dan b
+        l_channel, a_channel, b_channel = cv2.split(lab_image)
+        
+        # Terapkan CLAHE pada channel L
+        enhanced_l_channel = clahe.apply(l_channel)
+        
+        # Gabungkan kembali channel L yang sudah di-enhance dengan channel a dan b asli
+        merged_lab_image = cv2.merge([enhanced_l_channel, a_channel, b_channel])
+        
+        # Konversi kembali dari L*a*b* ke BGR
+        enhanced_image = cv2.cvtColor(merged_lab_image, cv2.COLOR_LAB2BGR)
+    
+    else:
+        # Jika format tidak terduga, kembalikan gambar asli
+        print(f"Format gambar tidak didukung: {image.shape}")
+        enhanced_image = image
 
-    # Buka dialog untuk memilih BANYAK file gambar
-    print("Membuka dialog file... Silakan pilih satu atau lebih gambar.")
-    file_paths = filedialog.askopenfilenames(
-        title="Pilih satu atau lebih gambar",
-        filetypes=[
-            ("Image Files", "*.jpg *.jpeg *.png *.bmp *.gif *.tiff"),
-            ("All Files", "*.*")
-        ]
-    )
+    return enhanced_image
 
-    # Hentikan program jika tidak ada file yang dipilih
-    if not file_paths:
-        print("Tidak ada file yang dipilih. Program berhenti.")
+def process_images_in_folder(input_dir, output_dir):
+    """
+    Memproses semua gambar dalam folder input dan menyimpannya di folder output.
+    """
+    # Pastikan folder output ada
+    os.makedirs(output_dir, exist_ok=True)
+    print(f"Folder output dipastikan ada di: {output_dir}")
+
+    # Tentukan tipe file gambar yang ingin dicari
+    file_types = ["*.jpg", "*.jpeg", "*.png", "*.bmp", "*.tif"]
+    
+    image_paths = []
+    for file_type in file_types:
+        # Menggunakan glob untuk mencari file berdasarkan pola
+        search_path = os.path.join(input_dir, file_type)
+        image_paths.extend(glob.glob(search_path))
+
+    if not image_paths:
+        print(f"Tidak ditemukan gambar di folder: {input_dir}")
         return
 
-    # --- 3. Tentukan Faktor Enhancement ---
-    # nilai default:
-    # <1.0 pudar
-    # 1.0 = asli
-    # 1.5 perubahan, dimana 50% pudar, 50% berwarna lebih kuat
-    # 2.0 = dua kali lebih berwarna
-    enhancement_factor = 1.5    
-    try:
-        faktor_str = input(f"Masukkan faktor enhancement warna (Contoh: 1.5) [Default: {enhancement_factor}]: ")
-        if faktor_str.strip():
-            enhancement_factor = float(faktor_str)
-    except ValueError:
-        print(f"Input tidak valid. Menggunakan nilai default: {enhancement_factor}")
+    print(f"Ditemukan {len(image_paths)} gambar. Memulai proses...")
 
-    print(f"\nMemproses {len(file_paths)} gambar dengan faktor {enhancement_factor}...")
-
-    # --- 4. Loop Proses Gambar ---
-    for file_path in file_paths:
+    # Loop melalui setiap path gambar
+    for img_path in image_paths:
         try:
-            img_original = Image.open(file_path)
-            if img_original.mode not in ('RGB'):
-                img_original = img_original.convert('RGB')
+            # Baca gambar
+            image = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+            
+            if image is None:
+                print(f"Gagal membaca: {img_path}. Melanjutkan...")
+                continue
 
-            enhancer = ImageEnhance.Color(img_original)
-            img_enhanced = enhancer.enhance(enhancement_factor)
-
-            # --- 5. Simpan Hasil ---
-            filename = os.path.basename(file_path)
-            nama_file, ekstensi = os.path.splitext(filename)
-            nama_file_baru = f"{nama_file}_enhanced{ekstensi}"
-            path_simpan = os.path.join(folder_output, nama_file_baru)
-            img_enhanced.save(path_simpan)
-            print(f" -> Berhasil disimpan di: {path_simpan}")
-
-            # --- 6. Tampilkan Perbandingan ---
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
-            ax1.imshow(img_original)
-            ax1.set_title(f"Asli: {filename}")
-            ax1.axis('off') 
-            ax2.imshow(img_enhanced)
-            ax2.set_title(f"Enhanced (Faktor: {enhancement_factor})")
-            ax2.axis('off')
-            plt.suptitle("Perbandingan Gambar Asli vs Enhanced", fontsize=16)
-            plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-            plt.show() 
+            print(f"Memproses: {img_path}")
+            
+            # Lakukan enhancement
+            enhanced_image = enhance_image_clahe(image)
+            
+            # Dapatkan nama file asli
+            filename = os.path.basename(img_path)
+            
+            # Tentukan path penyimpanan output
+            output_path = os.path.join(output_dir, filename)
+            
+            # Simpan gambar yang sudah di-enhance
+            cv2.imwrite(output_path, enhanced_image)
+            print(f"Berhasil disimpan ke: {output_path}")
 
         except Exception as e:
-            print(f" !! Gagal memproses file {file_path}: {e}")
+            print(f"Gagal memproses {img_path}: {e}")
 
-    print("\nSemua proses telah selesai.")
-
-# --- Jalankan Fungsi Utama ---
+# --- Jalankan Skrip ---
 if __name__ == "__main__":
-    proses_gambar()
+    if not os.path.isdir(FOLDER_INPUT):
+        print(f"Error: Folder input '{FOLDER_INPUT}' tidak ditemukan.")
+    else:
+        process_images_in_folder(FOLDER_INPUT, FOLDER_OUTPUT)
+        print("\n--- Proses Selesai ---")
